@@ -91,7 +91,7 @@ OpenFile() {
         Eval('quill.focus()')
         ; SendMode("Input")                   ;Edge (and by extension, WebView2) only support Input mode
         Send('{ctrl down}{v}{ctrl up}{ctrl down}{home}{ctrl up}')   ;paste the contents of the clipboard and go to the top
-        Send(key.ctrldown key.v key.ctrl)
+        Send(keys.ctrldown keys.v keys.ctrl)
         Sleep(500)
         ; AE.cSleep(100)
         ; A_Clipboard := tempClip
