@@ -7,14 +7,28 @@
  * @versioncodename Beta 1
  ***********************************************************************/
 #Requires AutoHotkey v2+
-#Include <Extensions/.modules/Pipe>
-#Include <Utilities/TestLogger>
+
+; Include dependencies from local lib folder
+#Include lib/Extensions/.modules/Pipe.ahk
+#Include lib/Utilities/TestLogger.ahk
 quartzTestLogger := TestLogger(A_LineFile)
-#Include <Extensions/.modules/Clipboard>
-#Include <Extensions/.primitives/Keys>
-#Include <System/WebView2/WebView2/WebView2>
-#Include <System/WebView2/ComVar>
-#Include <Abstractions/WindowManager>
+#Include lib/Extensions/.modules/Clipboard.ahk
+#Include lib/Extensions/.primitives/Keys.ahk
+#Include lib/Abstratctions/WindowManager.ahk
+#Include lib/System/WebView2.ahk
+#Include lib/System/ComVar.ahk
+
+; Add resources for compilation (source files to embed)
+;@Ahk2Exe-AddResource index.html
+;@Ahk2Exe-AddResource style.css
+;@Ahk2Exe-AddResource script.js
+;@Ahk2Exe-AddResource ..\lib\quill.css
+;@Ahk2Exe-AddResource ..\lib\quill.js
+;@Ahk2Exe-AddResource ..\lib\WebView2.ahk
+;@Ahk2Exe-AddResource ..\lib\ComVar.ahk
+;@Ahk2Exe-AddResource ..\lib\32bit\WebView2Loader.dll
+;@Ahk2Exe-AddResource ..\lib\64bit\WebView2Loader.dll
+;@Ahk2Exe-AddResource ..\fonts\poppins.css 
 
 ; FileInstall directives for compilation - includes all dependencies
 Class qSetup {
@@ -498,7 +512,7 @@ class Quartz {
 	 */
 	SaveFile(content) {
 		if (!this.isLoaded) {
-			tnrow Error("WebView is not fully loaded yet.")
+			throw Error("WebView is not fully loaded yet.")
 			return
 		}
 		try {
