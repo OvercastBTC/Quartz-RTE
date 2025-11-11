@@ -1,12 +1,14 @@
 ﻿# Quartz-RTE GitHub Sync & Submodule Setup Guide
 
 ## Current Status
+
 - **Local Repo**: `c:\Users\bacona\AppData\Local\Programs\AutoHotkey\v2\Lib\Extensions\.ui\RichEditors\Quartz-RTE`
 - **Origin**: `https://github.com/OvercastBTC/Quartz-RTE.git`
 - **Upstream**: `https://github.com/LaserMade/Quartz-RTE.git`
 - **Current Branch**: `master`
 
 ## Dependencies Found
+
 The script has external dependencies outside this folder:
 
 1. `#Include <Extensions/.modules/Pipe>`
@@ -24,6 +26,7 @@ These are currently loaded from your AutoHotkey Lib folder structure.
 ## Step 1: Branch Management Strategy
 
 ### Option A: Archive Old, Make This Master (Recommended)
+
 ```bash
 # Navigate to repo
 cd "c:\Users\bacona\AppData\Local\Programs\AutoHotkey\v2\Lib\Extensions\.ui\RichEditors\Quartz-RTE"
@@ -47,6 +50,7 @@ git push origin refactor-class-based
 ```
 
 ### Option B: Keep Old Master, New Branch
+
 ```bash
 # Your current work stays in a branch
 git checkout -b feature/class-refactor
@@ -62,6 +66,7 @@ git push origin feature/class-refactor
 You have 3 options for external dependencies:
 
 ### Option 2A: Git Submodules (Best for shared libraries)
+
 Create a separate repo for your AHK library dependencies:
 
 ```bash
@@ -81,6 +86,7 @@ git commit -m "Add AHK library dependencies as submodule"
 ```
 
 ### Option 2B: Copy Dependencies Locally (Simplest)
+
 ```bash
 # Copy required files into Quartz-RTE/lib/
 cd "c:\Users\bacona\AppData\Local\Programs\AutoHotkey\v2\Lib\Extensions\.ui\RichEditors\Quartz-RTE"
@@ -101,6 +107,7 @@ copy "C:\Users\bacona\AppData\Local\Programs\AutoHotkey\v2\Lib\Utilities\TestLog
 ```
 
 ### Option 2C: Symbolic Links (Developer-friendly)
+
 ```bash
 # Create symbolic links in Quartz-RTE/lib/ pointing to your main Lib folder
 cd "c:\Users\bacona\AppData\Local\Programs\AutoHotkey\v2\Lib\Extensions\.ui\RichEditors\Quartz-RTE"
@@ -145,6 +152,7 @@ git commit -m "Add Quartz-RTE as submodule"
 ```
 
 ### Using Submodules
+
 ```bash
 # Clone project with submodules
 git clone --recursive https://github.com/YourUsername/YourProject.git
@@ -252,7 +260,7 @@ git push origin v2.0.0
 
 ---
 
-## Questions to Answer:
+## Questions to Answer
 
 1. **Do you want to keep the original LaserMade version accessible?**
    - If yes → Use Option B (new branch)
