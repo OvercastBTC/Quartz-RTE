@@ -1,11 +1,31 @@
 ﻿/**
  * @class TestLogger
- * @description Non-blocking GUI logger for test output with singleton pattern
- * @version 3.1.0
+ * @description Non-blocking GUI logger for test output with singleton pattern and terminal output support
+ * @version 3.3.1
  * @author OvercastBTC (Adam Bacon)
- * @date 2025-11-10
+ * @date 2025-11-12
  * @requires AutoHotkey v2.0+
+ * @purpose Provides unified logging with GUI display, file persistence, OutputDebug, and optional terminal output
  * @changes
+ *   v3.3.1:
+ *   - Fixed GetInstance() to pass outputToTerminal parameter correctly
+ *   - Fixed SaveToFile() to create directory if needed and use proper path construction
+ *   - Improved SaveToFile() header to include script name and timestamp
+ *   - Added @purpose documentation for clarity
+ *   
+ *   v3.3.0:
+ *   - Added terminal output support for VS Code integration
+ *   - New outputToTerminal property (default: false)
+ *   - Terminal output can be enabled via constructor or Enable() method
+ *   - All log methods now output to terminal when enabled
+ *   - Uses PowerShell Write-Host for colored terminal output
+ *   
+ *   v3.2.0:
+ *   - Enhanced Show() method to enable logging automatically
+ *   - Added optional loadFromFile parameter to Show() for loading previous logs
+ *   - Added private _LoadFromFile() method for log file loading
+ *   - Show() now acts as combined enable + display + optional load
+ *   
  *   v3.1.0:
  *   - Added singleton pattern with instance tracker
  *   - Constructor now prevents duplicate instances per script name
@@ -29,7 +49,7 @@
  *   ; Main script pattern (creates unique instance per script)
  *   myLogger := TestLogger(A_LineFile)  ; Disabled by default
  *   myLogger.Enable()
- *   myLogger.SetState("running")
+ *   myLogger.SetState("Running")
  *   myLogger.Log("Test 1", "Message content")
  *   
  *   ; Library file pattern (singleton - returns same instance if already created)
@@ -85,6 +105,9 @@ class TestLogger {
 			cleanName := RegExReplace(fileName, "\.ahk$", "")
 		}
 		
+		; if WinExist(cleanName) {
+		; 	return
+		; }
 		; Return existing instance if already created
 		if (TestLogger._instances.Has(cleanName)) {
 			return TestLogger._instances[cleanName]
@@ -92,6 +115,7 @@ class TestLogger {
 		
 		; Create new instance (bypass singleton check in constructor)
 		instance := TestLogger(scriptName, autoEnable, true)  ; true = internal flag
+		; instance := TestLogger(scriptName, autoEnable)  ; true = internal flag
 		TestLogger._instances[cleanName] := instance
 		return instance
 	}
@@ -111,7 +135,8 @@ class TestLogger {
 	autoSave := true
 	callingScript := ""
 	callingScriptPath := ""
-	state := "startup"  ; Track logger state: startup | running | complete
+	state := "Startup"  ; Track logger state: Startup | Running | Complete
+	outputToTerminal := false  ; Enable terminal output (VS Code integration)
 	; @endregion Instance Properties
 	; -----------------------------------------------------------------------
 
@@ -121,16 +146,20 @@ class TestLogger {
 	 * @description Create a new instance-based logger
 	 * @param {String} [scriptName=""] Optional script name for this instance (can be A_LineFile)
 	 * @param {Boolean} [autoEnable=false] Automatically enable this instance
+	 * @param {Boolean} [outputToTerminal=false] Enable terminal output for VS Code integration
 	 * @param {Boolean} [_internalBypass=false] Internal flag - bypass singleton check
 	 * @note For library files, use TestLogger.GetInstance(A_LineFile) to ensure singleton behavior
 	 * @example
 	 *   ; Direct instantiation (creates new instance every time)
 	 *   logger := TestLogger("MyScript")
 	 *   
+	 *   ; With terminal output enabled
+	 *   logger := TestLogger("MyScript", true, true)
+	 *   
 	 *   ; Singleton pattern (recommended for library files)
 	 *   logger := TestLogger.GetInstance(A_LineFile)
 	 */
-	__New(scriptName := "", autoEnable := false, _internalBypass := false) {
+	__New(scriptName := "", autoEnable := false, outputToTerminal := false, _internalBypass := false) {
 		; Singleton check - if not bypassed, redirect to GetInstance
 		if (!_internalBypass && scriptName != "") {
 			; Check if instance already exists for this script
@@ -192,6 +221,7 @@ class TestLogger {
 		; Initialize instance properties
 		this.logs := []
 		this.enabled := autoEnable
+		this.outputToTerminal := outputToTerminal
 		
 		; Return instance for method chaining
 		return this
@@ -206,12 +236,15 @@ class TestLogger {
 	 * @method Enable
 	 * @description Enable logging
 	 * @param {Boolean} [enableAutoSave=true] Enable/disable autosave for this logger
+	 * @param {Boolean} [enableTerminal=false] Enable terminal output
 	 * @example
 	 *   myLogger.Enable()    ; Instance - enable this instance
+	 *   myLogger.Enable(true, true)  ; Enable with terminal output
 	 */
-	Enable(enableAutoSave := true) {
+	Enable(enableAutoSave := true, enableTerminal := false) {
 		this.enabled := true
 		this.autoSave := enableAutoSave
+		this.outputToTerminal := enableTerminal
 		return this
 	}
 
@@ -233,7 +266,7 @@ class TestLogger {
 	 * @description Set the logger state (startup/running/complete) and update status bar
 	 * @param {String} newState - One of: "startup", "running", "complete"
 	 * @example
-	 *   myLogger.SetState("complete")    ; Instance
+	 *   myLogger.SetState("Complete")    ; Instance
 	 */
 	SetState(newState) {
 		if (newState ~= "i)^(startup|running|complete)$") {
@@ -260,6 +293,11 @@ class TestLogger {
 		entry := Format("[{1}] {2}: {3}", timestamp, title, message)
 		this.logs.Push(entry)
 		OutputDebug(entry)
+		
+		; Output to terminal if enabled
+		if (this.outputToTerminal) {
+			this._OutputToTerminal(entry)
+		}
 		
 		if (this.autoSave && this.logFilePath) {
 			this._AppendToFile(entry)
@@ -371,19 +409,39 @@ class TestLogger {
 	; @region Show()
 	/**
 	 * @method Show
-	 * @description Show the logger GUI
+	 * @description Show the logger GUI and enable logging
+	 * @param {Boolean} [enableLogging=true] Enable logging when showing GUI
+	 * @param {Boolean} [loadFromFile=false] Load previous logs from file if available
+	 * @example
+	 *   myLogger.Show()              ; Show and enable
+	 *   myLogger.Show(false)          ; Show without enabling
+	 *   myLogger.Show(true, true)     ; Show, enable, and load from file
 	 */
-	Show() {
+	Show(enableLogging := true, loadFromFile := false) {
+		; Enable logging if requested
+		if (enableLogging && !this.enabled) {
+			this.Enable()
+		}
+		
+		; Load from file if requested and file exists
+		if (loadFromFile && this.logFilePath) {
+			this._LoadFromFile()
+		}
+		
+		; If GUI already exists and is visible, just bring to front
 		if (this.isVisible) {
-			this.gui.Show()
+			this.gui.Show('AutoSize')
+			this._UpdateDisplay()
 			return this
 		}
 
-		; Create the GUI
-		this._CreateGUI()
+		; Create the GUI if needed
+		if (!this.gui) {
+			this._CreateGUI()
+		}
 		
 		; Show and mark visible
-		this.gui.Show("AutoSize")
+		this.gui.Show()
 		this.isVisible := true
 		this._UpdateDisplay()
 		
@@ -396,22 +454,30 @@ class TestLogger {
 	 * @description Create the GUI controls and layout
 	 */
 	_CreateGUI() {
+
+		themeSet := false
 		; Build GUI title with calling script name
 		guiTitle := "Test Logger"
 		if (this.callingScript) {
 			guiTitle .= " - " this.callingScript
 		}
-
+		try if WinExist(guiTitle) {
+			return
+		}
 		; Create GUI
-		this.gui := Gui("+Resize +MinSize420x300", guiTitle)
-		
+		this.gui := Gui("+Resize +MinSize420x100", guiTitle)
 		; Apply TestLogger theme with safe fallback to prevent recursion
 		try {
-			this.gui.TerminalMode()
+			; this.gui.GitHubMode(this.gui)
+			themeMgr.GuiColors.ApplyTheme(this.gui, 'Terminal')
+			themeSet := true
 		} catch {
-			; Fallback to default dark theme if ThemeMgr fails
-			this.gui.BackColor := "0x1E1E1E"
-			this.gui.SetFont("s9 cD4D4D4", "Consolas")
+			if !themeSet {
+				Infos('I ran the default theme')
+				; Fallback to default dark theme if ThemeMgr fails
+				this.gui.BackColor := "0x1E1E1E"
+				this.gui.SetFont("s9 cD4D4D4", "Consolas")
+			}
 		}
 		
 		this.gui.SetFont("s9", "Consolas")
@@ -425,22 +491,31 @@ class TestLogger {
 		headerText.SetFont("s10 Bold")
 
 		; Log display (Edit control with readonly) - positioned below header
-		this.logEdit := this.gui.AddEdit("xm y+10 w400 r20 ReadOnly VScroll cSilver Background1E1E1E", "")
-		
+		; this.logEdit := this.gui.AddEdit("xm y+10 w400 r20 ReadOnly VScroll cSilver Background1E1E1E", "")
+		this.logEdit := this.gui.AddEdit("xm y+10 r20 Section ReadOnly VScroll cSilver Background1E1E1E", "")
+
+		ControlGetPos(&x, &y, &w, &h, this.logEdit)
+		this.logEdit.X := x
+		this.logEdit.Y := y
+		this.logEdit.W := w
+		this.logEdit.H := h
 		; Buttons row - positioned below edit control
 		; First button starts new row
-		clearBtn := this.gui.AddButton("xm y+10 w90 h30 Section", "Clear")
-		
+		this.gui.SetFont('italic')
+		clearBtn := this.gui.AddButton('xm ' y+h+25 ' w90 h30 Center', "Clear")
+
 		; Remaining buttons positioned to the right of previous button
-		copyBtn := this.gui.AddButton("x+10 w90 h30", "Copy")
-		closeBtn := this.gui.AddButton("x+10 w90 h30", "Close")
-		topBtn := this.gui.AddButton("x+10 w90 h30", "Always On Top")
+		this.gui.SetFont('Norm')
+		copyBtn := 	this.gui.AddButton("x+10 w90 h30 Center", "Copy")
+		closeBtn := this.gui.AddButton("x+10 w90 h30 Center", "Close")
+		closeBtn.Focus()
+		topBtn := 	this.gui.AddButton("x+10 w90 h30 Center", "Always On Top")
 		
 		; Set up button events
-		clearBtn.OnEvent("Click", (*) => this.Clear())
-		copyBtn.OnEvent("Click", (*) => this.CopyToClipboard())
-		closeBtn.OnEvent("Click", (*) => this.Hide())
-		topBtn.OnEvent("Click", (*) => this.ToggleAlwaysOnTop())
+		clearBtn.OnEvent(	"Click", (*) => this.Clear())
+		copyBtn.OnEvent(	"Click", (*) => this.CopyToClipboard())
+		closeBtn.OnEvent(	"Click", (*) => this.Hide())
+		topBtn.OnEvent(		"Click", (*) => this.ToggleAlwaysOnTop())
 
 		; Create status bar - automatically positioned at bottom
 		this._CreateStatusBar()
@@ -451,7 +526,7 @@ class TestLogger {
 
 		; Position window on right side of screen with bounds checking
 		MonitorGetWorkArea(, &monLeft, &monTop, &monRight, &monBottom)
-		guiWidth := 420
+		guiWidth := 500
 		guiHeight := 500
 		
 		; Calculate position ensuring GUI stays within screen bounds
@@ -469,7 +544,6 @@ class TestLogger {
 	_CreateStatusBar() {
 		; Create status bar with proper sizing and options
 		this.statusBar := this.gui.AddStatusBar()
-		
 		; Set explicit part sizes - allocate appropriate width for each section
 		this.statusBar.SetParts(150, 150, 150)  ; State | Enabled | Logs
 		
@@ -494,6 +568,8 @@ class TestLogger {
 		this.statusBar.SetText(stateText, 1)
 		this.statusBar.SetText(enabledText, 2)
 		this.statusBar.SetText(logsText, 3)
+
+		this.state := 'Complete'
 	}
 
 	/**
@@ -581,15 +657,38 @@ class TestLogger {
 	 *   myLogger.SaveToFile("custom_log.txt")  ; Save to specific file
 	 */
 	SaveToFile(filePath?) {
-		targetPath := IsSet(filePath) ? filePath : this.logFilePath
-		
-		if (!targetPath) {
-			throw ValueError("No log file path set. Use SetLogFile() first or provide a file path.", -1)
+		if (IsSet(filePath)) {
+			targetPath := filePath
+		} else {
+			; Build path from logFilePath + script name
+			if (!this.logFilePath) {
+				throw ValueError("No log file path set. Use SetLogFile() first or provide a file path.", -1)
+			}
+			
+			logDir := this.logFilePath
+			logFileName := "testlogger.log"
+			
+			if (this.callingScript) {
+				scriptBaseName := RegExReplace(this.callingScript, "\\.ahk$", "")
+				logFileName := scriptBaseName "_testlogger.log"
+			}
+			
+			targetPath := logDir logFileName
 		}
 		
 		try {
+			; Ensure directory exists
+			SplitPath(targetPath, , &dirPath)
+			if (dirPath && !DirExist(dirPath)) {
+				DirCreate(dirPath)
+			}
+			
 			file := FileOpen(targetPath, "w", "UTF-8")
-			file.Write(";; Test Logger - " FormatTime(, "yyyy-MM-dd HH:mm:ss") "`n")
+			file.Write(";; Test Logger")
+			if (this.callingScript) {
+				file.Write(" - " this.callingScript)
+			}
+			file.Write("`n;; Saved: " FormatTime(, "yyyy-MM-dd HH:mm:ss") "`n")
 			file.Write(";; =============================================================`n`n")
 			
 			if (this.logs.Length > 0) {
@@ -600,7 +699,7 @@ class TestLogger {
 			file.Close()
 			this.Success("Logs saved to: " targetPath)
 			return this
-		} catch Error as e {
+		} catch as e {
 			this.Error("Failed to save log file", e)
 			return this
 		}
@@ -643,8 +742,8 @@ class TestLogger {
 		marginY := this.gui.MarginY
 		
 		; Fixed heights
-		buttonHeight := 30
-		statusHeight := 20
+		buttonHeight := 25
+		statusHeight := 25
 		headerHeight := 25      ; Approximate header text height
 		
 		; Calculate content width (accounting for margins on both sides)
@@ -658,29 +757,48 @@ class TestLogger {
 		if (editHeight < 100) {
 			editHeight := 100
 		}
-		
 		; Resize edit control (maintains relative positioning via xm)
 		if (this.logEdit) {
-			this.logEdit.Move(, , contentWidth, editHeight)
+			; this.logEdit.Move(, , contentWidth, editHeight)
+			this.logEdit.Move(, , contentWidth,)
 		}
-		
+
+
 		; Resize buttons proportionally if window is wider
 		buttonWidth := 90
 		if (contentWidth > 400) {
 			; Distribute extra width among buttons
 			buttonWidth := Floor((contentWidth - 30) / 4)  ; 30 = 3 gaps of 10px
 		}
-		
+
+		ControlGetPos(&editX, &editY, &editW, &editH, this.logEdit)
+
+		buttonY := editHeight
+
 		; Buttons maintain their relative positions, just resize
-		try this.gui["Clear"].Move(, , buttonWidth)
-		try this.gui["Copy"].Move(, , buttonWidth)
-		try this.gui["Close"].Move(, , buttonWidth)
-		try this.gui["Always On Top"].Move(, , buttonWidth)
+		try this.gui["Clear"].Move(,, buttonWidth)
+		try this.gui["Copy"].Move(,, buttonWidth)
+		try this.gui["Close"].Move(,, buttonWidth)
+		try this.gui["Always On Top"].Move(,, buttonWidth)
 		
 		; Native status bar auto-resizes, just update its part sizes proportionally
 		if (this.statusBar) {
 			this.statusBar.SetParts(w * 0.33, w * 0.33, w * 0.34)
 		}
+
+		; Position window on right side of screen with bounds checking
+		; MonitorGetWorkArea(, &monLeft, &monTop, &monRight, &monBottom)
+		; ; guiWidth := 420
+		; ; guiHeight := 500
+		; guiWidth := 0
+		; guiHeight := 0
+
+		; ; Calculate position ensuring GUI stays within screen bounds
+		; guiX := Max(monLeft, monRight - guiWidth - 20)
+		; guiY := Max(monTop + 20, Min(20, monBottom - guiHeight - 20))
+		
+		; ; Set position
+		; this.gui.Move(guiX, guiY, guiWidth, guiHeight + 20)
 	}
 
 	/**
@@ -704,9 +822,11 @@ class TestLogger {
 		fullLogPath := logDir logFileName
 		
 		try {
-			if (!DirExist(logDir)) {
-				DirCreate(logDir)
-			}
+			; if (!DirExist(logDir)) {
+			; 	DirCreate(logDir)
+			; }
+			; DirAppend(logDir)
+			DirAppend(fullLogPath)
 			
 			if (!FileExist(fullLogPath)) {
 				headerFile := FileOpen(fullLogPath, "w", "UTF-8")
@@ -726,5 +846,106 @@ class TestLogger {
 			OutputDebug("[TestLogger] Failed to append to file: " e.Message)
 		}
 	}
+
+	/**
+	 * @private
+	 * @method _LoadFromFile
+	 * @description Load previous logs from file into the logger
+	 */
+	_LoadFromFile() {
+		if (!this.logFilePath)
+			return
+		
+		logDir := this.logFilePath
+		logFileName := "testlogger.log"
+		
+		if (this.callingScript) {
+			scriptBaseName := RegExReplace(this.callingScript, "\.ahk$", "")
+			logFileName := scriptBaseName "_testlogger.log"
+		}
+		
+		fullLogPath := logDir logFileName
+		
+		try {
+			if (FileExist(fullLogPath)) {
+				content := FileRead(fullLogPath, "UTF-8")
+				
+				; Parse log entries (skip header lines starting with ;;)
+				lines := StrSplit(content, "`n", "`r")
+				for line in lines {
+					if (line && !InStr(line, ";;") && Trim(line) != "") {
+						this.logs.Push(line)
+					}
+				}
+				
+				this.Info("Loaded " this.logs.Length " log entries from file")
+			}
+		} catch Error as e {
+			this.Error("Failed to load from file", e)
+		}
+	}
+
+	/**
+	 * @private
+	 * @method _OutputToTerminal
+	 * @description Output log entry to terminal using PowerShell Write-Host
+	 * @param {String} entry Log entry to output
+	 */
+	_OutputToTerminal(entry) {
+		try {
+			; Escape special characters for PowerShell
+			escapedEntry := StrReplace(entry, '"', '`"')
+			escapedEntry := StrReplace(escapedEntry, "$", "`$")
+			
+			; Determine color based on log type
+			color := "White"
+			if (InStr(entry, "✓ SUCCESS") || InStr(entry, "✓ INFO"))
+				color := "Green"
+			else if (InStr(entry, "✗ ERROR"))
+				color := "Red"
+			else if (InStr(entry, "⚠ WARNING"))
+				color := "Yellow"
+			else if (InStr(entry, "TEST"))
+				color := "Cyan"
+			
+			; Output to PowerShell terminal using Write-Host
+			cmd := 'powershell.exe -NoProfile -Command "Write-Host `'' escapedEntry '`' -ForegroundColor ' color '"'
+			Run(cmd, , "Hide")
+			
+		} catch as err {
+			; Silently fail - terminal output is non-critical
+			OutputDebug("[TestLogger] Terminal output failed: " err.Message)
+		}
+	}
 	; @endregion Private Methods
+
+	; -----------------------------------------------------------------------
+	; @region Status Bar Methods
+	/**
+	 * @method SetStatusBarColors
+	 * @description Set custom colors for status bar (limited support - background color only)
+	 * @param {Integer} [bgColor] Background color (BGR format, e.g., 0x2D2D30 for dark)
+	 * @param {Integer} [textColor] Text color (BGR format) - may not work reliably
+	 * @note Status bar coloring has limitations in AutoHotkey v2. Background color works, text color is unreliable.
+	 * @example
+	 *   logger.SetStatusBarColors(0x2D2D30)  ; Dark background
+	 */
+	SetStatusBarColors(bgColor?, textColor?) {
+		if (!this.statusBar) {
+			return this
+		}
+		
+		; Set background color using Windows API (more reliable)
+		if IsSet(bgColor) {
+			DllCall("SendMessage", "Ptr", this.statusBar.Hwnd, "UInt", 0x2001, "Ptr", 0, "Ptr", bgColor)  ; SB_SETBKCOLOR
+		}
+		
+		; Store text color preference (may not work due to Windows limitations)
+		if IsSet(textColor) {
+			this._statusTextColor := textColor
+		}
+		
+		return this
+	}
+	; @endregion Status Bar Methods
 }

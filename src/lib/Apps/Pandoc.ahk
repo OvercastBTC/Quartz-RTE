@@ -49,9 +49,12 @@
  *   fmt := Pandoc.DetectFormat(content)
  */
 
-#Include <System\Paths>
-#Include <Extensions/.modules/Clipboard>
-#Include <Extensions/.formats/FormatConverter>
+; #Include <System\Paths>
+; #Include <Extensions/.modules/Clipboard>
+; #Include <Extensions/.formats/FormatConverter>
+#Include ../System/Paths.ahk
+#Include ../Extensions/.modules/Clipboard.ahk
+#Include ../Extensions/.formats/FormatConverter.ahk
 
 class Pandoc {
 	static dirPandoc 	:= Paths.Pandoc

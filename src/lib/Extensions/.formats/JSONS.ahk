@@ -26,10 +26,19 @@
  */
 
 #Requires AutoHotkey v2+
-#Include <Extensions/.formats/jsongo>
-#Include <Extensions/.formats/cJson>
-#Include <Extensions/.formats/json>
-#Include <Apps/Pandoc>
+;? this is my lib file, for Quartz-RTE, use the one below
+;! for the local lib files, comment out the below and uncomment the ones after
+; #Include <Extensions/.formats/jsongo>
+; #Include <Extensions/.formats/cJson>
+; #Include <Extensions/.formats/json>
+; #Include <Apps/Pandoc>
+
+;? this the local lib files, for Quartz-RTE, use this one
+;! for the local lib files, uncomment the ones below
+#Include jsongo.ahk
+#Include cJson.ahk
+#Include json.ahk
+#Include ../../Apps/Pandoc.ahk
 
 class JSONS {
     ; -----------------------------------------------------------------------

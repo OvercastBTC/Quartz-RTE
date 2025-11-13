@@ -38,8 +38,11 @@
 
 ; #Include <Extensions/Pipe>
 ; ------------------------------------------------------------
-#Include <Utilities/GetFilesSortedByDate>
-#Include <Extensions\.ui/Infos>
+; #Include <Utilities/GetFilesSortedByDate>
+; #Include <Extensions\.ui/Infos>
+;? Local lib files for Quartz-RTE
+#Include ../Utilities/GetFilesSortedByDate.ahk
+#Include ../Extensions/.ui/Infos.ahk
 
 class Paths {
 	; ---------------------------------------------------------------------------

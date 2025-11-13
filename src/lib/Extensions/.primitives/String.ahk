@@ -61,7 +61,13 @@
 	==============================================================================
 *********************************************************************************/
 #Requires AutoHotkey v2+
-#Include <Extensions/.primitives/Text>
+;? this is my lib file, for Quartz-RTE, use the one below
+;! for the local lib files, comment out the below and uncomment the ones after
+; #Include <Extensions/.primitives/Text>
+
+;? this the local lib files, for Quartz-RTE, use this one
+;! for the local lib files, uncomment the ones below
+#Include Text.ahk
 
 class String2 {
 	static __New() {

@@ -1,10 +1,21 @@
 ﻿#Requires AutoHotkey v2+
-#Include <System/Paths>
-#Include <System/Win>
-#Include <Utilities/InternetSearch>
-#Include <Extensions/.modules/Clipboard>
-#Include <Extensions/.primitives/Keys>
-#Include <Extensions/.ui/Infos>
+;? this is my lib file, for Quartz-RTE, use the one below
+;! for the local lib files, comment out the below and uncomment the ones after
+; #Include <System/Paths>
+; #Include <System/Win>
+; #Include <Utilities/InternetSearch>
+; #Include <Extensions/.modules/Clipboard>
+; #Include <Extensions/.primitives/Keys>
+; #Include <Extensions/.ui/Infos>
+
+;? this the local lib files, for Quartz-RTE, use this one
+;! for the local lib files, uncomment the ones below
+#Include ../System/Paths.ahk
+#Include ../System/Win.ahk
+#Include ../Utilities/InternetSearch.ahk
+#Include ../Extensions/.modules/Clipboard.ahk
+#Include ../Extensions/.primitives/Keys.ahk
+#Include ../Extensions/.ui/Infos.ahk
 
 ; @region Hotkeys
 /**
