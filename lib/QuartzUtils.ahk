@@ -3,10 +3,10 @@
  * @file QuartzUtils.ahk
  * @author Consolidated by Claude from multiple dependencies
  * @date 2025/11/18
- * @version 1.0.0
- * @requires AutoHotkey v2.0+
+ * @version 1.1.0
+ * @requires AutoHotkey v2+
  ***********************************************************************/
-#Requires AutoHotkey v2.0+
+#Requires AutoHotkey v2+
 
 /**
  * @class QuartzUtils
@@ -14,6 +14,14 @@
  * Replaces: Clipboard.ahk, WindowManager.ahk, Pandoc.ahk (partial), Pipe.ahk, TestLogger.ahk
  */
 class QuartzUtils {
+	; ---------------------------------------------------------------------------
+	; @region Static Properties
+	; ---------------------------------------------------------------------------
+	static Version := "1.1.0"
+	static _delayCache := 50
+	static _lastDelayUpdate := 0
+	static _delayInterval := 5000
+	; @endregion Static Properties
 	; ---------------------------------------------------------------------------
 	; @region Clipboard Utilities
 	; ---------------------------------------------------------------------------
@@ -107,7 +115,7 @@ class QuartzUtils {
 	 */
 	static PositionWindowLeft(hwnd, widthPercent := 0.5) {
 		MonitorGetWorkArea(, &left, &top, &right, &bottom)
-		width := Integer((right - left) * widthPercent)
+		width := Floor((right - left) * widthPercent)
 		height := bottom - top
 		WinMove(left, top, width, height, "ahk_id " hwnd)
 	}
@@ -119,7 +127,7 @@ class QuartzUtils {
 	 */
 	static PositionWindowRight(hwnd, widthPercent := 0.5) {
 		MonitorGetWorkArea(, &left, &top, &right, &bottom)
-		width := Integer((right - left) * widthPercent)
+		width := Floor((right - left) * widthPercent)
 		height := bottom - top
 		leftPos := right - width
 		WinMove(leftPos, top, width, height, "ahk_id " hwnd)
@@ -247,6 +255,157 @@ class QuartzUtils {
 	; @endregion Pipe Communication
 	
 	; ---------------------------------------------------------------------------
+	; @region Delay Management (from DelayManager)
+	; ---------------------------------------------------------------------------
+	/**
+	 * @property {Integer} Delay
+	 * @description Gets the current cached delay value in ms.
+	 * @returns {Integer} Delay in milliseconds
+	 */
+	static Delay {
+		get {
+			now := A_TickCount
+			if (now - this._lastDelayUpdate > this._delayInterval) {
+				this.RecalculateDelay()
+			}
+			return this._delayCache
+		}
+	}
+	
+	/**
+	 * @description High-precision delay calibration using QueryPerformanceCounter.
+	 * @param {Integer} iterations Number of iterations to run.
+	 * @returns {Map} Map with keys: delay (ms), elapsed (ticks), freq (Hz)
+	 * @throws {ValueError} If iterations is not a positive integer.
+	 */
+	static QueryPerformanceTime(iterations := 1000) {
+		local freq := 0, start := 0, finish := 0, num := 0
+		
+		if !IsSet(iterations) || iterations < 1 {
+			throw ValueError("Iterations must be a positive integer", -1)
+		}
+		
+		DllCall("QueryPerformanceFrequency", "Int64*", &freq)
+		DllCall("QueryPerformanceCounter", "Int64*", &start)
+		
+		Loop iterations {
+			num := A_Index ** 2
+			num /= 2
+		}
+		
+		DllCall("QueryPerformanceCounter", "Int64*", &finish)
+		local elapsed := finish - start
+		local delay := Round((elapsed / freq) * 1000)
+		
+		return Map("delay", delay, "elapsed", elapsed, "freq", freq)
+	}
+	
+	/**
+	 * @description Calculate system delay time using specified method.
+	 * @param {String} method Timing method ('query', 'tick', 'combined')
+	 * @param {Integer} samples Number of samples to collect
+	 * @param {Integer} iterations Iterations per sample
+	 * @returns {Number} Calibrated delay time in milliseconds
+	 * @throws {ValueError} If parameters are invalid.
+	 */
+	static GetDelayTime(method := 'combined', samples := 5, iterations := 1000) {
+		local delays := []
+		local delay := 0
+		
+		if !IsSet(method) {
+			method := 'query'
+		}
+		if !IsSet(samples) || samples < 1 {
+			samples := 5
+		}
+		if !IsSet(iterations) || iterations < 1 {
+			iterations := 1000
+		}
+		
+		Loop samples {
+			switch method {
+				case "query":
+					result := this.QueryPerformanceTime(iterations)
+					delay := result["delay"]
+				case "tick":
+					tickBefore := A_TickCount
+					Loop iterations {
+						num := A_Index ** 2
+						num /= 2
+					}
+					delay := A_TickCount - tickBefore
+				case "combined":
+					qpResult := this.QueryPerformanceTime(iterations)
+					tickBefore := A_TickCount
+					Loop iterations {
+						num := A_Index ** 2
+						num /= 2
+					}
+					tickDelay := A_TickCount - tickBefore
+					delay := Round((qpResult["delay"] + tickDelay) / 2)
+				default:
+					throw ValueError("Unknown timing method: " method, -1)
+			}
+			delays.Push(delay)
+		}
+		
+		; Return median value for stability
+		delays := this._SortArray(delays)
+		return delays[Floor(delays.Length / 2) + 1]
+	}
+	
+	/**
+	 * @description Force recalculation of delay.
+	 * @returns {QuartzUtils} This class for method chaining.
+	 */
+	static RecalculateDelay() {
+		try {
+			this._delayCache := this.GetDelayTime()
+		} catch Error as err {
+			this._delayCache := 50
+		}
+		this._lastDelayUpdate := A_TickCount
+		return this
+	}
+	
+	/**
+	 * @description Set the delay update interval in ms.
+	 * @param {Integer} ms Interval in milliseconds.
+	 * @returns {QuartzUtils} This class for method chaining.
+	 */
+	static SetDelayInterval(ms) {
+		if (!IsSet(ms) || ms < 100) {
+			throw ValueError("Interval must be >= 100 ms", -1)
+		}
+		this._delayInterval := ms
+		return this
+	}
+	
+	/**
+	 * @private
+	 * @description Sort array helper method
+	 * @param {Array} arr Array to sort
+	 * @returns {Array} Sorted array
+	 */
+	static _SortArray(arr) {
+		; Simple bubble sort for small arrays
+		n := arr.Length
+		Loop n - 1 {
+			i := A_Index
+			Loop n - i {
+				j := A_Index
+				if (arr[j] > arr[j + 1]) {
+					temp := arr[j]
+					arr[j] := arr[j + 1]
+					arr[j + 1] := temp
+				}
+			}
+		}
+		return arr
+	}
+	; @endregion Delay Management
+	
+	; ---------------------------------------------------------------------------
 	; @region Debug Utilities (replaces TestLogger)
 	; ---------------------------------------------------------------------------
 	/**
@@ -276,3 +435,12 @@ class QuartzUtils {
 	}
 	; @endregion Debug Utilities
 }
+
+; ---------------------------------------------------------------------------
+; Global Variables
+; ---------------------------------------------------------------------------
+/**
+ * @global A_Delay
+ * @description Global delay variable for system operations (dynamically updated)
+ */
+Global A_Delay := QuartzUtils.Delay
