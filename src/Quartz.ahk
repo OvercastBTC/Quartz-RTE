@@ -205,7 +205,7 @@ class Quartz {
 	 * @param {Ptr} sender The sender object pointer
 	 * @param {Ptr} args Event arguments pointer
 	 */
-	OnNavigationCompleted(sender, args) {
+	OnNavigationCompleted(args*) {
 		this.isLoaded := true
 	}
 
@@ -349,12 +349,14 @@ class Quartz {
 			if (selected = "" || !FileExist(selected)) {
 				return
 			}
-			throw("Opening file: " selected)
+			
+			QuartzUtils.Debug("Opening file: " selected)
+			
 			if (InStr(selected, "rtf")) {
-				throw("Detected RTF file.")
+				QuartzUtils.Debug("Detected RTF file.")
 				this.OpenRTF(selected)
 			} else {
-				throw("Detected text file.")
+				QuartzUtils.Debug("Detected text file.")
 				this.OpenTextFile(selected)
 			}
 		} catch Error as err {
@@ -1057,7 +1059,8 @@ if (A_Args.Length > 0 && FileExist(A_Args[1])) {
 	; TEMPORARY: Auto-open test RTF file after initialization
 	testFile := A_ScriptDir "\..\(AJB - 2024.06.19) - test file.rtf"
 	if FileExist(testFile) {
-		SetTimer(() => editor.OpenFile(testFile), -1000)
+		Sleep(A_Delay)
+		editor.OpenFile(testFile)
 	}
 }
 
