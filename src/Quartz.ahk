@@ -202,11 +202,10 @@ class Quartz {
 
 	/**
 	 * @description Event handler for WebView2 navigation completed
-	 * @param {Ptr} this The this pointer (COM interface)
 	 * @param {Ptr} sender The sender object pointer
 	 * @param {Ptr} args Event arguments pointer
 	 */
-	OnNavigationCompleted(this_ptr, sender, args) {
+	OnNavigationCompleted(sender, args) {
 		this.isLoaded := true
 	}
 
