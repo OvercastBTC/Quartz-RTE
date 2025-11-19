@@ -8,15 +8,10 @@
  ***********************************************************************/
 #Requires AutoHotkey v2+
 
-; Include dependencies from local lib folder
-#Include lib/Extensions/.modules/Pipe.ahk
-#Include lib/Utilities/TestLogger.ahk
-quartzTestLogger := TestLogger(A_LineFile)
-#Include lib/Extensions/.modules/Clipboard.ahk
-#Include lib/Extensions/.primitives/Keys.ahk
-#Include lib/Abstratctions/WindowManager.ahk
-#Include lib/System/WebView2.ahk
-#Include lib/System/ComVar.ahk
+; Include dependencies from parent lib folder
+#Include ..\lib\QuartzUtils.ahk
+#Include ..\lib\WebView2.ahk
+#Include ..\lib\ComVar.ahk
 
 ; Add resources for compilation (source files to embed)
 ;@Ahk2Exe-AddResource index.html
@@ -26,6 +21,7 @@ quartzTestLogger := TestLogger(A_LineFile)
 ;@Ahk2Exe-AddResource ..\lib\quill.js
 ;@Ahk2Exe-AddResource ..\lib\WebView2.ahk
 ;@Ahk2Exe-AddResource ..\lib\ComVar.ahk
+;@Ahk2Exe-AddResource ..\lib\QuartzUtils.ahk
 ;@Ahk2Exe-AddResource ..\lib\32bit\WebView2Loader.dll
 ;@Ahk2Exe-AddResource ..\lib\64bit\WebView2Loader.dll
 ;@Ahk2Exe-AddResource ..\fonts\poppins.css 
@@ -92,7 +88,7 @@ static installFiles() {
 	}
 }
 
-quartzTestLogger.Log("=== Quartz.ahk loaded - Debug logging enabled ===")
+; Debug logging available via QuartzUtils.Debug()
 
 /**
  * @class Quartz
@@ -135,70 +131,56 @@ class Quartz {
 	 * @param {String} initialText Optional text to initialize the editor with
 	 */
 	__New(initialText := "") {
-		quartzTestLogger.Log("__New", "Creating new Quartz instance, initialText length: " StrLen(initialText))
+		; Creating new Quartz instance
 		
 		; Assign unique instance ID
 		Quartz.instanceCount++
 		this.instanceID := Quartz.instanceCount
-		quartzTestLogger.Log("__New", "Instance ID: " this.instanceID)
 		
 		this.text := initialText
 		this.SetupGUI()
 		
 		; Register this instance
 		Quartz.instances[this.hwnd] := this
-		quartzTestLogger.Log("__New", "Instance registered with HWND: " this.hwnd)
 		
 		; If initial text is provided, set it once the editor is loaded
 		if (initialText != "") {
 			this.WaitForLoad()
 			this.SetText(initialText)
 		}
-		
-		quartzTestLogger.Log("__New", "Instance created successfully")
 	}
 
 	/**
 	 * @description Setup the GUI and WebView2 control
 	 */
 	SetupGUI() {
-		quartzTestLogger.Log("SetupGUI", "Starting GUI setup")
 		; TEMPORARILY REMOVED TRY/CATCH FOR DEBUGGING
 		; try {
 			this.RTE := Gui()
-			quartzTestLogger.Log("SetupGUI", "Gui object created")
 			this.RTE.Opt("+Resize +MinSize640x400")
 			this.RTE.Title := "Quartz Rich Text Editor"
 			this.RTE.OnEvent("Close", (*) => ExitApp())
-			quartzTestLogger.Log("SetupGUI", "Close event handler registered")
 			this.RTE.OnEvent("Size", (GuiObj, MinMax, Width, Height) => this.GuiSize(GuiObj, MinMax, Width, Height))
-			quartzTestLogger.Log("SetupGUI", "Size event handler registered")
 
 			; Show the GUI initially
 			this.RTE.Show()
-			quartzTestLogger.Log("SetupGUI", "GUI shown")
 			
 			; Store the window handle
 			this.hwnd := this.RTE.Hwnd
-			quartzTestLogger.Log("SetupGUI", "HWND stored: " this.hwnd)
 			
-			; Position and size the window using WindowManager (right 30% of screen)
-			WindowManager(this.hwnd).LeftSide()
-			quartzTestLogger.Log("SetupGUI", "Window positioned")
+			; Position and size the window (left side of screen)
+			QuartzUtils.PositionWindowLeft(this.hwnd)
 
 			; Create WebView2 control
 			this.WV2 := WebView2.create(this.RTE.Hwnd)
-			quartzTestLogger.Log("SetupGUI", "WebView2.create() called")
 
 			; Wait for the WebView2 to be fully created
 			while !this.WV2.CoreWebView2 {
 				Sleep(A_Delay)
 			}
-			quartzTestLogger.Log("SetupGUI", "WebView2.CoreWebView2 ready")
 
 			this.HTML := this.WV2.CoreWebView2
 			this.HTML.Navigate("file:///" Quartz.path.html)
-			quartzTestLogger.Log("SetupGUI", "Navigating to: file:///" Quartz.path.html)
 			
 			this.HTML.AddHostObjectToScript("ahk", { 
 				about: this.About.Bind(this), 
@@ -208,11 +190,9 @@ class Quartz {
 				getHTML: this.GetHTML.Bind(this), 
 				exit: this.Exit.Bind(this) 
 			})
-			quartzTestLogger.Log("SetupGUI", "Host objects added to script")
 
 			; Register for navigation completed event
 			this.HTML.add_NavigationCompleted(WebView2.Handler(this.OnNavigationCompleted.Bind(this)))
-			quartzTestLogger.Log("SetupGUI", "Setup complete, navigation event registered")
 		; }
 		; catch Error as err {
 		; 	; MsgBox("Error in SetupGUI: " err.Message)
@@ -227,9 +207,7 @@ class Quartz {
 	 * @param {Ptr} args Event arguments pointer
 	 */
 	OnNavigationCompleted(this_ptr, sender, args) {
-		quartzTestLogger.Log("OnNavigationCompleted", "Navigation completed, setting isLoaded to true")
 		this.isLoaded := true
-		quartzTestLogger.Log("OnNavigationCompleted", "isLoaded is now: " this.isLoaded)
 	}
 
 	/**
@@ -284,7 +262,7 @@ class Quartz {
 	 */
 	About() {
 		if (!this.isLoaded) {
-			Infos("WebView is not fully loaded yet.")
+			throw("WebView is not fully loaded yet.")
 			return
 		}
 		try {
@@ -301,7 +279,6 @@ class Quartz {
 	 */
 	Focus() {
 		if (!this.isLoaded) {
-			quartzTestLogger.Log("Focus", "WebView not loaded, waiting...")
 			this.WaitForLoad()
 		}
 		
@@ -312,10 +289,8 @@ class Quartz {
 			; Focus the Quill editor within the WebView
 			this.HTML.ExecuteScript("quill.focus()")
 			
-			quartzTestLogger.Log("Focus", "Editor focused successfully")
 			return this
 		} catch Error as err {
-			quartzTestLogger.Log("Focus", "Error focusing editor: " err.Message)
 			throw Error("Failed to focus editor: " err.Message, -1)
 		}
 	}
@@ -331,11 +306,9 @@ class Quartz {
 			if (instance) {
 				return instance.Focus()
 			} else {
-				quartzTestLogger.Log("Focus", "No active Quartz editor instance found")
 				return false
 			}
 		} catch Error as err {
-			quartzTestLogger.Log("Focus", "Error in static Focus: " err.Message)
 			throw err
 		}
 	}
@@ -350,10 +323,10 @@ class Quartz {
 			if (instance) {
 				return instance.OpenFile(savedfile)
 			} else {
-				Infos("No active Quartz editor instance found.")
+				throw("No active Quartz editor instance found.")
 			}
 		} catch Error as err {
-			Infos("Error in static OpenFile: " err.Message)
+			throw("Error in static OpenFile: " err.Message)
 			throw err
 		}
 	}
@@ -377,12 +350,12 @@ class Quartz {
 			if (selected = "" || !FileExist(selected)) {
 				return
 			}
-			infos("Opening file: " selected)
+			throw("Opening file: " selected)
 			if (InStr(selected, "rtf")) {
-				infos("Detected RTF file.")
+				throw("Detected RTF file.")
 				this.OpenRTF(selected)
 			} else {
-				infos("Detected text file.")
+				throw("Detected text file.")
 				this.OpenTextFile(selected)
 			}
 		} catch Error as err {
@@ -410,71 +383,48 @@ class Quartz {
 	 * @param {String} rtfFile Path to RTF file
 	 */
 	OpenRTF(rtfFile) {
-		quartzTestLogger.Log("OpenRTF", "Starting RTF file open: " rtfFile)
 		try {
 			; Wait for WebView2 to be loaded
 			if (!this.isLoaded) {
-				quartzTestLogger.Log("OpenRTF", "WebView not loaded, waiting...")
 				this.WaitForLoad()
-				quartzTestLogger.Log("OpenRTF", "WebView now loaded")
 			}
 			
-			quartzTestLogger.Log("OpenRTF", "Attempting ComObjGet...")
 			; Use ComObjGet to access the RTF file (simpler than Word automation)
 			doc := ComObjGet(rtfFile)
-			quartzTestLogger.Log("OpenRTF", "ComObjGet successful")
 			
-			quartzTestLogger.Log("OpenRTF", "Backing up clipboard...")
 			; Backup the current clipboard
-			Clipboard.BackupAll(&cBak)
-			quartzTestLogger.Log("OpenRTF", "Clipboard backed up")
+			cBak := QuartzUtils.BackupClipboard()
 			
-			quartzTestLogger.Log("OpenRTF", "Setting SendMode...")
-			SM(&objSM)
-			quartzTestLogger.Log("OpenRTF", "SendMode set")
+			; SM(&objSM)
+			SendMode('Event')
 			
-			quartzTestLogger.Log("OpenRTF", "Copying formatted text to clipboard...")
 			; Copy the formatted content to clipboard using Win32 API
 			doc.content.formattedText.copy()
-			quartzTestLogger.Log("OpenRTF", "Formatted text copied, waiting for clipboard...")
-			Clipboard.Wait()
-			quartzTestLogger.Log("OpenRTF", "Clipboard ready")
+			QuartzUtils.WaitForClipboard()
 			Sleep(300)
 			
-			quartzTestLogger.Log("OpenRTF", "Activating window HWND: " this.RTE.Hwnd)
 			; Activate our editor window
 			WinActivate(this.RTE.Hwnd)
-			quartzTestLogger.Log("OpenRTF", "Window activated, waiting for active state...")
 			WinWaitActive(this.RTE.Hwnd, , 2)
-			quartzTestLogger.Log("OpenRTF", "Window is active")
 			
-			quartzTestLogger.Log("OpenRTF", "Focusing Quill editor via JavaScript...")
 			; Focus the Quill editor using Eval method (which has proper handler)
 			this.Eval('quill.focus()')
 			
-			quartzTestLogger.Log("OpenRTF", "Focus script sent, waiting 500ms for focus to complete...")
 			Sleep(500)  ; Give time for focus to complete
-			quartzTestLogger.Log("OpenRTF", "Focus wait complete")
 			
-			quartzTestLogger.Log("OpenRTF", "Sending paste command: " keys.paste)
 			; Paste using keyboard input
-			Send(keys.paste)
-			quartzTestLogger.Log("OpenRTF", "Paste sent, waiting 300ms...")
+			Send("^v")
 			Sleep(300)
 			
-			quartzTestLogger.Log("OpenRTF", "Navigating to top of document...")
 			; Go to top of document
-			Send(keys.ctrldown keys.home keys.ctrlup)
-			quartzTestLogger.Log("OpenRTF", "Navigation complete")
+			; Move cursor to beginning and select all
+			Send("{Ctrl down}{Home}{Ctrl up}")
 			Sleep(100)
 			
-			quartzTestLogger.Log("OpenRTF", "Restoring clipboard...")
 			; Restore clipboard
-			Clipboard.RestoreAll(cBak)
-			quartzTestLogger.Log("OpenRTF", "RTF file opened successfully!")
+			QuartzUtils.RestoreClipboard(cBak)
 		}
 		catch Error as err {
-			quartzTestLogger.Log("OpenRTF", "ERROR: " err.Message)
 			; More detailed error handling
 			errDetail := "Error opening RTF file: " err.Message
 			if (RegExMatch(err.Message, "i)com\s+error")) {
@@ -600,8 +550,6 @@ class Quartz {
  * @description Handles GUI close event with logging
  */
 OnClose() {
-	quartzTestLogger.Log("OnClose", "Close event fired - X button clicked")
-	quartzTestLogger.Log("OnClose", "Calling Exit() method")
 	this.Exit()
 }
 
@@ -609,33 +557,25 @@ OnClose() {
 	 * @description Exit the application and clean up resources
 	 */
 	Exit() {
-		quartzTestLogger.Log("Exit", "Exit() called for instance ID: " this.instanceID ", HWND: " this.hwnd)
 		; TEMPORARILY REMOVED TRY/CATCH FOR DEBUGGING
 		; try {
 			if (this.isLoaded) {
-				quartzTestLogger.Log("Exit", "Editor is loaded, calling exitApp()")
 				this.HTML.ExecuteScript("exitApp()")
-			} else {
-				quartzTestLogger.Log("Exit", "Editor not loaded, skipping exitApp()")
 			}
 			
 			; Unregister this instance
 			if Quartz.instances.Has(this.hwnd) {
-				quartzTestLogger.Log("Exit", "Unregistering instance from map")
 				Quartz.instances.Delete(this.hwnd)
 			}
 			
 			this.HTML := this.WV2 := ""
-			quartzTestLogger.Log("Exit", "Destroying GUI")
 			this.RTE.Destroy()
 		; } catch Error as err {
 		; 	throw err
 		; }
 		
 		; If no more instances, exit the app
-		quartzTestLogger.Log("Exit", "Remaining instances: " Quartz.instances.Count)
 		if (Quartz.instances.Count = 0) {
-			quartzTestLogger.Log("Exit", "No more instances, calling ExitApp()")
 			ExitApp()
 		}
 	}
@@ -918,7 +858,7 @@ OnClose() {
 			
 			; Check if content appears to be RTF
 			; if (SubStr(clipContent, 1, 5) != "{\rtf") {
-			; 	Infos("Clipboard does not contain RTF content.", "RTF Import", 48)
+			; 	throw("Clipboard does not contain RTF content.", "RTF Import", 48)
 			; 	return this
 			; }
 			
@@ -953,18 +893,18 @@ OnClose() {
 						range.InsertFile("", "", false, false, stream)
 						
 						; Copy the formatted content to clipboard
-						Clipboard.BackupAll(&cBak)
+						cBak := QuartzUtils.BackupClipboard()
 						doc.Range.FormattedText.Copy
-						Clipboard.Sleep()
+						QuartzUtils.WaitForClipboard()
 						
 						; Activate our editor window and focus the editor
 						this.Focus()
 						
-						Send(keys.paste)
+						Send("^v")
 						Sleep(A_Delay)
 						
 						; Restore clipboard
-						Clipboard.RestoreAll(cBak)
+						QuartzUtils.RestoreClipboard(cBak)
 					}
 					finally {
 						; Close document without saving
@@ -1111,18 +1051,14 @@ OnClose() {
 ; Create initial instance when script runs directly
 ; Check if a file was passed as a parameter
 if (A_Args.Length > 0 && FileExist(A_Args[1])) {
-	quartzTestLogger.Log("Main", "Opening file from command line: " A_Args[1])
 	editor := Quartz()
 	editor.OpenFile(A_Args[1])
 } else {
-	quartzTestLogger.Log("Main", "Creating new Quartz instance")
 	editor := Quartz()
-	; TEMPORARY: Auto-open test RTF file
-	Sleep(1000)  ; Wait for GUI to fully initialize
+	; TEMPORARY: Auto-open test RTF file after initialization
 	testFile := A_ScriptDir "\..\(AJB - 2024.06.19) - test file.rtf"
 	if FileExist(testFile) {
-		quartzTestLogger.Log("Main", "Auto-opening test file: " testFile)
-		editor.OpenFile(testFile)
+		SetTimer(() => editor.OpenFile(testFile), -1000)
 	}
 }
 
@@ -1143,10 +1079,10 @@ if (A_Args.Length > 0 && FileExist(A_Args[1])) {
 ^+t::{                                         ; Ctrl+Shift+T - Show text
 	instance := Quartz.GetActiveInstance()
 	if (instance) {
-		infos(instance.PassTextToAHK())
+		throw(instance.PassTextToAHK())
 	}
 }
-^+h::infos(Quartz.PassHTMLToAHK())           ; Ctrl+Shift+H - Show HTML
+^+h::throw(Quartz.PassHTMLToAHK())           ; Ctrl+Shift+H - Show HTML
 ^+q::Quartz.Exit()                            ; Ctrl+Shift+Q - Quit
 ^+a::Quartz.About()                           ; Ctrl+Shift+A - About
 
