@@ -2,27 +2,6 @@
 	"folders": [
 		{
 			"path": "."
-		},
-		{
-			"path": "../Lib"
-		},
-		{
-			"path": "../Peep"
-		},
-		{
-			"path": "../../../../../../OneDrive - FM Global/Documents/AutoHotkey/Lib"
-		},
-		{
-			"path": "../AHK.Projects.v2/ClipboardEditor"
-		},
-		{
-			"path": "../AHK.Projects.v2/Lib.v2"
-		},
-		{
-			"path": "../AHK.Projects.v2/Scriptlet_Library"
-		},
-		{
-			"path": "../../../../../AppData/Local/Programs/AutoHotkey/v2/Lib"
 		}
 	],
 	"settings": {}
