@@ -261,11 +261,11 @@ class Quartz {
 	 */
 	About() {
 		if (!this.isLoaded) {
-			throw("WebView is not fully loaded yet.")
+			throw Error("WebView is not fully loaded yet.")
 			return
 		}
 		try {
-			this.HTML.ExecuteScript("about()")
+			this.HTML.ExecuteScript("about()", (handler, errorCode, result) => "")
 		} catch Error as err {
 			throw err
 		}
@@ -286,7 +286,7 @@ class Quartz {
 			WinActivate(this.RTE.Hwnd)
 			
 			; Focus the Quill editor within the WebView
-			this.HTML.ExecuteScript("quill.focus()")
+			this.HTML.ExecuteScript("quill.focus()", (handler, errorCode, result) => "")
 			
 			return this
 		} catch Error as err {
@@ -366,9 +366,10 @@ class Quartz {
 	}
 
 	Eval(script) {
-		; ExecuteScript is async by default in WebView2, returns a promise/await
+		; ExecuteScript is async by default in WebView2, requires a handler
 		try {
-			result := this.HTML.ExecuteScript(script)
+			result := ""
+			this.HTML.ExecuteScript(script, (handler, errorCode, resultObjectAsJson) => result := resultObjectAsJson)
 			return result
 		} catch Error as err {
 			MsgBox("Error executing script: " err.Message "`n`nScript: " script)
@@ -451,7 +452,7 @@ class Quartz {
 			escapedContent := StrReplace(escapedContent, "`n", "\n")
 			escapedContent := StrReplace(escapedContent, "'", "\'")
 			
-			this.HTML.ExecuteScript("quill.setText('" escapedContent "')")
+			this.HTML.ExecuteScript("quill.setText('" escapedContent "')", (handler, errorCode, result) => "")
 		} catch Error as err {
 			throw err
 		}
@@ -509,7 +510,9 @@ class Quartz {
 		}
 		try {
 			; Return the editor text synchronously (wrapper awaits the async call)
-			return this.HTML.ExecuteScript("return quill.getText();")
+			result := ""
+			this.HTML.ExecuteScript("return quill.getText();", (handler, errorCode, resultJson) => result := resultJson)
+			return result
 	} catch Error as err {
 		throw err
 	}
@@ -524,8 +527,10 @@ class Quartz {
 			return
 		}
 		try {
-			; Need handler with return value 
-			return this.HTML.ExecuteScript("return quill.root.innerHTML;")
+			; Need handler with return value
+			result := ""
+			this.HTML.ExecuteScript("return quill.root.innerHTML;", (handler, errorCode, resultJson) => result := resultJson)
+			return result
 	} catch Error as err {
 		throw err
 	}
@@ -541,7 +546,7 @@ class Quartz {
 		}
 		try {
 			escapedText := StrReplace(text, "'", "\'")
-			this.HTML.ExecuteScript("quill.setText('" escapedText "');")
+			this.HTML.ExecuteScript("quill.setText('" escapedText "');", (handler, errorCode, result) => "")
 	} catch Error as err {
 		throw err
 	}
@@ -561,7 +566,7 @@ OnClose() {
 		; TEMPORARILY REMOVED TRY/CATCH FOR DEBUGGING
 		; try {
 			if (this.isLoaded) {
-				this.HTML.ExecuteScript("exitApp()")
+				this.HTML.ExecuteScript("exitApp()", (handler, errorCode, result) => "")
 			}
 			
 			; Unregister this instance
@@ -652,7 +657,7 @@ OnClose() {
 			return
 		}
 		try {
-			this.HTML.ExecuteScript("newFile()")
+			this.HTML.ExecuteScript("newFile()", (handler, errorCode, result) => "")
 	}
 	catch Error as err {
 		throw err
@@ -668,7 +673,9 @@ OnClose() {
 			return
 	}
 	try {
-		return this.HTML.ExecuteScript("return quill.getText();")
+		result := ""
+		this.HTML.ExecuteScript("return quill.getText();", (handler, errorCode, resultJson) => result := resultJson)
+		return result
 	} catch Error as err {
 		throw err
 	}
@@ -683,7 +690,9 @@ OnClose() {
 			return
 		}
 		try {
-			return this.HTML.ExecuteScript("return quill.root.innerHTML;")
+			result := ""
+			this.HTML.ExecuteScript("return quill.root.innerHTML;", (handler, errorCode, resultJson) => result := resultJson)
+			return result
 	} catch Error as err {
 		throw err
 	}
@@ -758,7 +767,7 @@ OnClose() {
 			; Execute JavaScript to apply formatting
 			script := "applyFormat('" formatName "', " value ");"
 			; Use synchronous ExecuteScript (wrapper will call ExecuteScriptAsync and await)
-			this.HTML.ExecuteScript(script)
+			this.HTML.ExecuteScript(script, (handler, errorCode, result) => "")
 	} catch Error as err {
 		throw err
 	}
@@ -774,7 +783,7 @@ OnClose() {
 			}
 			
 		; Toggle strikethrough via ExecuteScript
-		this.HTML.ExecuteScript("toggleStrikethrough();")
+		this.HTML.ExecuteScript("toggleStrikethrough();", (handler, errorCode, result) => "")
 	} catch Error as err {
 		throw err
 	}
@@ -806,7 +815,7 @@ OnClose() {
 			}
 			
 			enableStr := enable ? "true" : "false"
-			this.HTML.ExecuteScript("enableMarkdownMode(" enableStr ");")
+			this.HTML.ExecuteScript("enableMarkdownMode(" enableStr ");", (handler, errorCode, result) => "")
 	} catch Error as err {
 		throw err
 	}
@@ -828,7 +837,7 @@ OnClose() {
 			escapedMarkdown := StrReplace(escapedMarkdown, "`n", "\n")
 			escapedMarkdown := StrReplace(escapedMarkdown, "`r", "")
 			
-			this.HTML.ExecuteScript("importMarkdown('" escapedMarkdown "');")
+			this.HTML.ExecuteScript("importMarkdown('" escapedMarkdown "');", (handler, errorCode, result) => "")
 	} catch Error as err {
 		throw err
 	}
@@ -956,7 +965,7 @@ OnClose() {
 			escapedRTF := this.EscapeForJS(rtfContent)
 			
 				; Call the JavaScript function to handle RTF
-				this.HTML.ExecuteScript("importRTFasHTML(" escapedRTF ");")
+				this.HTML.ExecuteScript("importRTFasHTML(" escapedRTF ");", (handler, errorCode, result) => "")
 	} 
 	catch Error as err {
 		throw err
@@ -989,7 +998,7 @@ OnClose() {
 			escapedRTF := this.EscapeForJS(rtfContent)
 			
 				; Call the JavaScript function to handle RTF
-				this.HTML.ExecuteScript("importRTFasHTML(" escapedRTF ");")
+				this.HTML.ExecuteScript("importRTFasHTML(" escapedRTF ");", (handler, errorCode, result) => "")
 	} 
 	catch Error as err {
 		throw err
